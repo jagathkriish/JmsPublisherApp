@@ -6,14 +6,10 @@ import org.springframework.jms.core.JmsTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.jms.core.MessagePostProcessor;
-
 import java.util.Random;
 import java.util.UUID;
-import javax.jms.JMSException;
-
-import javax.jms.Message;
-
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import javax.jms.Queue;
 
 @RestController
@@ -32,10 +28,10 @@ public class ProducerResource {
     private Queue resQueue;
 
     @GetMapping("/create/{message}")
-    public String publish(@PathVariable("message") final String message) {
+    public String publish(@PathVariable("message") final String message) throws ExecutionException, InterruptedException {
         final String correlationId = UUID.randomUUID().toString();
 
-        System.out.println(reqQueue.hashCode()+"  "+correlationId);
+        /*System.out.println(reqQueue.hashCode()+"  "+correlationId);
 
         int rand  = new Random().nextInt(2);
         if(rand == 0){
@@ -57,12 +53,21 @@ public class ProducerResource {
 
         String responseMessage2 = (String) jmsTemplate2
                 .receiveSelectedAndConvert(resQueue,
-                        "JMSCorrelationID='" + correlationId + "'");
-
-        return "Published OK with message from server1: "+responseMessage+" and from server2: "+responseMessage2;
+                        "JMSCorrelationID='" + correlationId + "'"); */
+        Object resp = null;
+        try {
+            resp = new CompletableFutureTest().subscribeAndGet(correlationId, jmsTemplate, jmsTemplate2, reqQueue, resQueue, message);
+        } catch (TimeoutException e) {
+            return "Timed out";
+        }
+        if(resp == null){
+            return "No message recieved";
+        }else{
+            return "Published OK with message from server: "+resp.toString();
+        }
     }
 
-    private class CorrelationIdPostProcessor implements MessagePostProcessor {
+    /*private class CorrelationIdPostProcessor implements MessagePostProcessor {
         private final String correlationId;
 
         public CorrelationIdPostProcessor(final String correlationId) {
@@ -75,5 +80,5 @@ public class ProducerResource {
             msg.setJMSCorrelationID(correlationId);
             return msg;
         }
-    }
+    }*/
 }
